@@ -1,41 +1,62 @@
 ---
 x-shared-env:
-  kratos_dsn: &kratos-dsn DSN=mysql://${KRATOS_DATABASE_USER}:${KRATOS_DATABASE_PASSWORD}@tcp(kratos_database:3306)/${KRATOS_DATABASE_SCHEMA}?sslmode=disable&max_conns=20&max_idle_conns=4
+  kratos_dsn: &kratos-dsn DSN=mysql://${KRATOS_DATABASE_USER}:${KRATOS_DATABASE_PASSWORD}@tcp(kratos_database:3306)/${KRATOS_DATABASE_SCHEMA}?sql_mode=''&max_conns=20&max_idle_conns=4
   kratos_version: &kratos-version VERSION=${KRATOS_VERSION}
   log_level: &log-level LOG_LEVEL=${LOG_LEVEL}
   traefik-labels: &traefik-labels
-    - traefik.docker.network=gateway
-    - traefik.enable=true
-    - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
-    - traefik.http.middlewares.auth.forwardauth.address=http://oathkeeper:4456/decisions
-    - traefik.http.middlewares.auth.forwardauth.authResponseHeaders=X-Id-Token,Authorization
-    - traefik.http.middlewares.auth.forwardauth.trustForwardHeader=true
-    - traefik.http.routers.traefik.entrypoints=https
-    - traefik.http.routers.traefik.rule=Host(`traefik.${HOSTNAME}`)
-    - traefik.http.routers.traefik.service=api@internal
-    - traefik.http.routers.traefik.tls.certresolver=digitalocean
-    - traefik.http.routers.traefik.tls.domains[0].main=${HOSTNAME}
-    - traefik.http.routers.traefik.tls.domains[0].sans=*.${HOSTNAME}
-    - traefik.http.routers.traefik.tls=true
-    - traefik.http.services.traefik.loadbalancer.server.port=8080
-  mail-labels: &mail-labels
-    - traefik.docker.network=gateway
-    - traefik.enable=true
-    - traefik.http.routers.mail.entrypoints=https
-    - traefik.http.routers.mail.rule=Host(`mail.${HOSTNAME}`)
-    - traefik.http.routers.mail.service=mail
-    - traefik.http.routers.mail.tls=true
-    - traefik.http.routers.mail.middlewares=auth@docker
-    - traefik.http.services.mail.loadbalancer.server.port=1080
+    traefik.docker.network: gateway
+    traefik.enable: 'true'
+    traefik.http.middlewares.https-redirect.redirectscheme.scheme: https
+    traefik.http.middlewares.auth.forwardauth.address: http://oathkeeper:4456/decisions
+    traefik.http.middlewares.auth.forwardauth.authResponseHeaders: X-Id-Token,Authorization
+    traefik.http.middlewares.auth.forwardauth.trustForwardHeader: 'true'
+    traefik.http.routers.traefik-http.entrypoints: http
+    traefik.http.routers.traefik-http.middlewares: https-redirect
+    traefik.http.routers.traefik-http.rule: Host(`traefik.${HOSTNAME}`)
+    traefik.http.routers.traefik-https.entrypoints: https
+    traefik.http.routers.traefik-https.rule: Host(`traefik.${HOSTNAME}`)
+    traefik.http.routers.traefik-https.service: api@internal
+    traefik.http.routers.traefik-https.tls.certresolver: digitalocean
+    traefik.http.routers.traefik-https.tls.domains[0].main: ${HOSTNAME}
+    traefik.http.routers.traefik-https.tls.domains[0].sans: '*.${HOSTNAME}'
+    traefik.http.routers.traefik-https.tls: 'true'
+    # traefik.http.routers.traefik-https.middlewares: auth@docker
+    traefik.http.services.traefik.loadbalancer.server.port: 8080
   auth-labels: &auth-labels
-    - traefik.docker.network=gateway
-    - traefik.enable=true
-    - traefik.http.routers.auth.entrypoints=https
-    - traefik.http.routers.auth.rule=Host(`auth.${HOSTNAME}`)
-    - traefik.http.routers.auth.service=auth
-    - traefik.http.routers.auth.tls=true
-    - traefik.http.routers.auth.middlewares=auth@docker
-    - traefik.http.services.auth.loadbalancer.server.port=4455
+    traefik.docker.network: gateway
+    traefik.enable: 'true'
+    traefik.http.routers.auth-http.entrypoints: http
+    traefik.http.routers.auth-http.middlewares: https-redirect
+    traefik.http.routers.auth-http.rule: Host(`auth.${HOSTNAME}`)
+    traefik.http.routers.auth-https.entrypoints: https
+    traefik.http.routers.auth-https.rule: Host(`auth.${HOSTNAME}`)
+    traefik.http.routers.auth-https.service: auth
+    traefik.http.routers.auth-https.tls: 'true'
+    traefik.http.services.auth.loadbalancer.server.port: 4455
+  mail-labels: &mail-labels
+    traefik.docker.network: gateway
+    traefik.enable: 'true'
+    traefik.http.routers.mail-http.entrypoints: http
+    traefik.http.routers.mail-http.middlewares: https-redirect
+    traefik.http.routers.mail-http.rule: Host(`mail.${HOSTNAME}`)
+    traefik.http.routers.mail-https.entrypoints: https
+    traefik.http.routers.mail-https.rule: Host(`mail.${HOSTNAME}`)
+    traefik.http.routers.mail-https.service: mail
+    traefik.http.routers.mail-https.tls: 'true'
+    traefik.http.routers.mail-https.middlewares: auth@docker
+    traefik.http.services.mail.loadbalancer.server.port: 1080
+  whoami-labels: &whoami-labels
+    traefik.docker.network: gateway
+    traefik.enable: 'true'
+    traefik.http.routers.whoami-http.entrypoints: http
+    traefik.http.routers.whoami-http.middlewares: https-redirect
+    traefik.http.routers.whoami-http.rule: Host(`whoami.${HOSTNAME}`)
+    traefik.http.routers.whoami-https.entrypoints: https
+    traefik.http.routers.whoami-https.rule: Host(`whoami.${HOSTNAME}`)
+    traefik.http.routers.whoami-https.service: whoami
+    traefik.http.routers.whoami-https.tls: 'true'
+    traefik.http.routers.whoami-https.middlewares: auth@docker
+    traefik.http.services.whoami.loadbalancer.server.port: 80
 
 networks:
   database:
@@ -117,14 +138,16 @@ services:
 
   mail:
     deploy:
-      labels: *mail-labels
+      labels:
+        <<: *mail-labels
     environment:
       - MAILDEV_SMTP_PORT=1025
       - MAILDEV_WEB_PORT=1080
       - MAILDEV_MAIL_DIRECTORY=/maildir
     hostname: mail.${HOSTNAME}
     image: maildev/maildev:${MAILDEV_VERSION}
-    labels: *mail-labels
+    labels:
+      <<: *mail-labels
     networks:
       - gateway
     ports:
@@ -138,11 +161,13 @@ services:
       - kratos_server
       - kratos_self_ui
     deploy:
-      labels: *auth-labels
+      labels:
+        <<: *auth-labels
     environment:
       - *log-level
     image: oryd/oathkeeper:${OATHKEEPER_VERSION}
-    labels: *auth-labels
+    labels:
+      <<: *auth-labels
     hostname: auth.${HOSTNAME}
     networks:
       - gateway
@@ -155,7 +180,8 @@ services:
 
   traefik:
     deploy:
-      labels: *traefik-labels
+      labels:
+        <<: *traefik-labels
       mode: global
       placement:
         constraints:
@@ -164,7 +190,8 @@ services:
       - DO_AUTH_TOKEN
     hostname: traefik.${HOSTNAME}
     image: traefik:${TRAEFIK_VERSION}
-    labels: *traefik-labels
+    labels:
+      <<: *traefik-labels
     networks:
       - gateway
     ports:
@@ -176,17 +203,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   whoami:
+    deploy:
+      labels:
+        <<: *whoami-labels
     hostname: whoami.${HOSTNAME}
     image: traefik/whoami
     networks:
       - gateway
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.whoami.entrypoints=https
-      - traefik.http.routers.whoami.middlewares=auth@docker
-      - traefik.http.routers.whoami.rule=Host(`whoami.${HOSTNAME}`)
-      - traefik.http.routers.whoami.service=whoami
-      - traefik.http.routers.whoami.tls=true
-      - traefik.http.services.whoami.loadbalancer.server.port=80
+      <<: *whoami-labels
 
 version: '3'
