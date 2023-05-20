@@ -1,6 +1,6 @@
 ---
 x-shared-env:
-  kratos_dsn: &kratos-dsn DSN=postgres://${KRATOS_DATABASE_USER}:${KRATOS_DATABASE_PASSWORD}@kratos_database:${KRATOS_DATABASE_PORT}/${KRATOS_DATABASE_SCHEMA}?sslmode=disable&max_conns=20&max_idle_conns=4
+  kratos_dsn: &kratos-dsn DSN=mysql://${KRATOS_DATABASE_USER}:${KRATOS_DATABASE_PASSWORD}@tcp(kratos_database:3306)/${KRATOS_DATABASE_SCHEMA}?sslmode=disable&max_conns=20&max_idle_conns=4
   kratos_version: &kratos-version VERSION=${KRATOS_VERSION}
   log_level: &log-level LOG_LEVEL=${LOG_LEVEL}
   traefik-labels: &traefik-labels
@@ -64,16 +64,18 @@ services:
 
   kratos_database:
     environment:
-      - POSTGRES_USER=${KRATOS_DATABASE_USER}
-      - POSTGRES_PASSWORD=${KRATOS_DATABASE_PASSWORD}
-      - POSTGRES_DB=${KRATOS_DATABASE_SCHEMA}
-    image: postgres:${POSTGRES_VERSION}
+      - MYSQL_ROOT_PASSWORD=${KRATOS_DATABASE_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${KRATOS_DATABASE_SCHEMA}
+      - MYSQL_USER=${KRATOS_DATABASE_USER}
+      - MYSQL_PASSWORD=${KRATOS_DATABASE_PASSWORD}
+    image: mariadb:${MARIADB_VERSION}
     networks:
       - database
     ports:
-      - ${KRATOS_DATABASE_PORT}:${KRATOS_DATABASE_PORT}
+      - 3316:3306
+    restart: unless-stopped
     volumes:
-      - ./var/kratos/postgresql:/var/lib/postgresql/data
+      - ./var/kratos/mysql:/var/lib/mysql
 
   kratos_server:
     command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
