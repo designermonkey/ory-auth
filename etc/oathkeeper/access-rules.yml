@@ -1,0 +1,74 @@
+- id: ory:kratos:public
+  upstream:
+    url: http://kratos_server:4433
+    preserve_host: true
+    strip_path: /.ory/kratos/public
+  match:
+    url: http://127.0.0.1:4455/.ory/kratos/public/<**>
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+  authenticators:
+    - handler: noop
+  authorizer:
+    handler: allow
+  mutators:
+    - handler: noop
+
+- id: ory:kratos_self_ui:anonymous
+  upstream:
+    url: http://kratos_self_ui:4435
+    preserve_host: true
+  match:
+    url: http://127.0.0.1:4455/<{,registration,welcome,recovery,verification,login,error,health/{alive,ready},**.css,**.js,**.png,**.svg,**.woff*}>
+    methods:
+      - GET
+  authenticators:
+    - handler: anonymous
+  authorizer:
+    handler: allow
+  mutators:
+    - handler: noop
+
+- id: ory:kratos_self_ui:protected
+  upstream:
+    url: http://kratos_self_ui:4435
+    preserve_host: true
+  match:
+    url: http://127.0.0.1:4455/<{sessions,settings}>
+    methods:
+      - GET
+  authenticators:
+    - handler: cookie_session
+  authorizer:
+    handler: allow
+  errors:
+    - config:
+        to: http://127.0.0.1:4455/login
+      handler: redirect
+  mutators:
+    - handler: id_token
+
+- id: datum:whoami:protected
+  upstream:
+    url: http://whoami
+    preserve_host: true
+  match:
+    url: https://whoami.<**>
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+  authenticators:
+    - handler: cookie_session
+  authorizer:
+    handler: allow
+  errors:
+    - handler: redirect
+  mutators:
+    - handler: id_token

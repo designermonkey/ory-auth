@@ -1,0 +1,190 @@
+---
+x-shared-env:
+  kratos_dsn: &kratos-dsn DSN=postgres://${KRATOS_DATABASE_USER}:${KRATOS_DATABASE_PASSWORD}@kratos_database:${KRATOS_DATABASE_PORT}/${KRATOS_DATABASE_SCHEMA}?sslmode=disable&max_conns=20&max_idle_conns=4
+  kratos_version: &kratos-version VERSION=${KRATOS_VERSION}
+  log_level: &log-level LOG_LEVEL=${LOG_LEVEL}
+  traefik-labels: &traefik-labels
+    - traefik.docker.network=gateway
+    - traefik.enable=true
+    - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+    - traefik.http.middlewares.auth.forwardauth.address=http://oathkeeper:4456/decisions
+    - traefik.http.middlewares.auth.forwardauth.authResponseHeaders=X-Id-Token,Authorization
+    - traefik.http.middlewares.auth.forwardauth.trustForwardHeader=true
+    - traefik.http.routers.traefik.entrypoints=https
+    - traefik.http.routers.traefik.rule=Host(`traefik.${HOSTNAME}`)
+    - traefik.http.routers.traefik.service=api@internal
+    - traefik.http.routers.traefik.tls.certresolver=digitalocean
+    - traefik.http.routers.traefik.tls.domains[0].main=${HOSTNAME}
+    - traefik.http.routers.traefik.tls.domains[0].sans=*.${HOSTNAME}
+    - traefik.http.routers.traefik.tls=true
+    - traefik.http.services.traefik.loadbalancer.server.port=8080
+  mail-labels: &mail-labels
+    - traefik.docker.network=gateway
+    - traefik.enable=true
+    - traefik.http.routers.mail.entrypoints=https
+    - traefik.http.routers.mail.rule=Host(`mail.${HOSTNAME}`)
+    - traefik.http.routers.mail.service=mail
+    - traefik.http.routers.mail.tls=true
+    - traefik.http.routers.mail.middlewares=auth@docker
+    - traefik.http.services.mail.loadbalancer.server.port=1080
+  auth-labels: &auth-labels
+    - traefik.docker.network=gateway
+    - traefik.enable=true
+    - traefik.http.routers.auth.entrypoints=https
+    - traefik.http.routers.auth.rule=Host(`auth.${HOSTNAME}`)
+    - traefik.http.routers.auth.service=auth
+    - traefik.http.routers.auth.tls=true
+    - traefik.http.routers.auth.middlewares=auth@docker
+    - traefik.http.services.auth.loadbalancer.server.port=4455
+
+networks:
+  database:
+    name: database
+
+  gateway:
+    attachable: true
+    driver: overlay
+    name: gateway
+
+services:
+  kratos_migrate:
+    command: -c /etc/config/kratos/kratos.yml migrate sql -e --yes
+    depends_on:
+      - kratos_database
+    environment:
+      - *kratos-dsn
+      - *log-level
+      - *kratos-version
+    image: oryd/kratos:${KRATOS_VERSION}
+    networks:
+      - database
+    restart: on-failure
+    volumes:
+      - ./etc/kratos:/etc/config/kratos
+
+  kratos_database:
+    environment:
+      - POSTGRES_USER=${KRATOS_DATABASE_USER}
+      - POSTGRES_PASSWORD=${KRATOS_DATABASE_PASSWORD}
+      - POSTGRES_DB=${KRATOS_DATABASE_SCHEMA}
+    image: postgres:${POSTGRES_VERSION}
+    networks:
+      - database
+    ports:
+      - ${KRATOS_DATABASE_PORT}:${KRATOS_DATABASE_PORT}
+    volumes:
+      - ./var/kratos/postgresql:/var/lib/postgresql/data
+
+  kratos_server:
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    depends_on:
+      - kratos_database
+    environment:
+      - *kratos-dsn
+      - *log-level
+      - *kratos-version
+      - SERVE_PUBLIC_BASE_URL=http://127.0.0.1:4455/.ory/kratos/public/
+      - SELFSERVICE_ALLOWED_RETURN_URLS=https://*.${HOSTNAME},http://127.0.0.1:4455
+    image: oryd/kratos:${KRATOS_VERSION}
+    networks:
+      - database
+      - gateway
+    ports:
+      - 4433:4433 # public api
+      - 4434:4434 # private api
+    restart: unless-stopped
+    volumes:
+      - ./etc/kratos:/etc/config/kratos
+
+  kratos_self_ui:
+    depends_on:
+      - kratos_server
+    environment:
+      - PORT=4435
+      - JWKS_URL=http://oathkeeper:4456/.well-known/jwks.json
+      - SECURITY_MODE=jwks
+      - KRATOS_BROWSER_URL=http://127.0.0.1:4455/.ory/kratos/public
+      - KRATOS_PUBLIC_URL=http://kratos_server:4433
+      - KRATOS_ADMIN_URL=http://kratos_server:4434
+    image: oryd/kratos-selfservice-ui-node:${KRATOS_SELF_UI_VERSION}
+    networks:
+      - gateway
+    ports:
+      - 4435:4435
+    restart: on-failure
+
+  mail:
+    deploy:
+      labels: *mail-labels
+    environment:
+      - MAILDEV_SMTP_PORT=1025
+      - MAILDEV_WEB_PORT=1080
+      - MAILDEV_MAIL_DIRECTORY=/maildir
+    hostname: mail.${HOSTNAME}
+    image: maildev/maildev:${MAILDEV_VERSION}
+    labels: *mail-labels
+    networks:
+      - gateway
+    ports:
+      - 1080:1080
+    volumes:
+      - ./var/lib/mail:/maildir
+
+  oathkeeper:
+    command: serve proxy -c "/etc/config/oathkeeper/oathkeeper.yml"
+    depends_on:
+      - kratos_server
+      - kratos_self_ui
+    deploy:
+      labels: *auth-labels
+    environment:
+      - *log-level
+    image: oryd/oathkeeper:${OATHKEEPER_VERSION}
+    labels: *auth-labels
+    hostname: auth.${HOSTNAME}
+    networks:
+      - gateway
+    ports:
+      - 4455:4455 # public api
+      - 4456:4456 # private api
+    restart: on-failure
+    volumes:
+      - ./etc/oathkeeper:/etc/config/oathkeeper
+
+  traefik:
+    deploy:
+      labels: *traefik-labels
+      mode: global
+      placement:
+        constraints:
+          - node.role==manager
+    environment:
+      - DO_AUTH_TOKEN
+    hostname: traefik.${HOSTNAME}
+    image: traefik:${TRAEFIK_VERSION}
+    labels: *traefik-labels
+    networks:
+      - gateway
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./etc/traefik/traefik.yaml:/traefik.yaml
+      - ./etc/traefik/acme.json:/acme.json
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  whoami:
+    hostname: whoami.${HOSTNAME}
+    image: traefik/whoami
+    networks:
+      - gateway
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.entrypoints=https
+      - traefik.http.routers.whoami.middlewares=auth@docker
+      - traefik.http.routers.whoami.rule=Host(`whoami.${HOSTNAME}`)
+      - traefik.http.routers.whoami.service=whoami
+      - traefik.http.routers.whoami.tls=true
+      - traefik.http.services.whoami.loadbalancer.server.port=80
+
+version: '3'

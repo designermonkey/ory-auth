@@ -1,0 +1,35 @@
+---
+accesslog: {}
+api:
+  dashboard: true
+  debug: true
+certificatesResolvers:
+  digitalocean:
+    acme:
+      dnsChallenge:
+        provider: digitalocean
+      email: servers.engineering@micron-research.com
+      storage: /acme.json
+entryPoints:
+  http:
+    address: ':80'
+    forwardedHeaders:
+      insecure: true
+  https:
+    address: ':443'
+    forwardedHeaders:
+      insecure: true
+pilot:
+  dashboard: false
+providers:
+  docker:
+    endpoint: unix:///var/run/docker.sock
+    exposedByDefault: false
+    network: gateway
+    swarmMode: false
+    swarmModeRefreshSeconds: 10
+    watch: true
+serversTransport:
+  insecureSkipVerify: true
+# log:
+#   level: DEBUG
