@@ -7,13 +7,24 @@ serve:
     base_url: http://127.0.0.1:4433
     cors:
       enabled: true
+      allowed_methods:
+        - POST
+        - GET
+        - PUT
+        - PATCH
+        - DELETE
+      allowed_headers:
+        - Authorization
+        - Cookie
+        - Content-Type
+      exposed_headers:
+        - Content-Type
+        - Set-Cookie
   admin:
     base_url: http://kratos_server:4434
 
 selfservice:
   default_browser_return_url: http://127.0.0.1:4455
-  # allowed_return_urls:
-  #   - http://127.0.0.1:4455
 
   methods:
     password:
@@ -25,7 +36,7 @@ selfservice:
     lookup_secret:
       enabled: true
     link:
-      enabled: true
+      enabled: false
     code:
       enabled: true
 
@@ -84,7 +95,7 @@ ciphers:
 hashers:
   algorithm: bcrypt
   bcrypt:
-    cost: 8
+    cost: 12
 
 identity:
   default_schema_id: default

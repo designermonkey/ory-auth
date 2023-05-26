@@ -6,8 +6,6 @@ serve:
   proxy:
     cors:
       enabled: true
-      allowed_origins:
-        - "*"
       allowed_methods:
         - POST
         - GET
@@ -16,11 +14,12 @@ serve:
         - DELETE
       allowed_headers:
         - Authorization
+        - Cookie
         - Content-Type
       exposed_headers:
         - Content-Type
+        - Set-Cookie
       allow_credentials: true
-      debug: true
 
 errors:
   fallback:
@@ -40,6 +39,13 @@ errors:
               header:
                 accept:
                   - text/html
+          - error:
+              - internal_server_error
+              - not_found
+            request:
+              header:
+                accept:
+                  - text/html
     json:
       enabled: true
       config:
@@ -48,13 +54,20 @@ errors:
 access_rules:
   matching_strategy: glob
   repositories:
-    - file:///etc/config/oathkeeper/access-rules.yml
+    # - file:///etc/config/oathkeeper/access-rules-traefik.yml
+    - http://rules/access-rules.yml
 
 authenticators:
   anonymous:
     enabled: true
     config:
       subject: guest
+
+  bearer_token:
+    enabled: true
+    config:
+      check_session_url: http://kratos_server:4433/sessions/whoami
+      preserve_path: true
 
   cookie_session:
     enabled: true
