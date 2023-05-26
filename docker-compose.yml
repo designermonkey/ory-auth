@@ -33,6 +33,18 @@ x-shared-env:
     traefik.http.routers.auth-https.service: auth
     traefik.http.routers.auth-https.tls: 'true'
     traefik.http.services.auth.loadbalancer.server.port: 4455
+  admin-labels: &admin-labels
+    traefik.docker.network: gateway
+    traefik.enable: 'true'
+    traefik.http.routers.admin-http.entrypoints: http
+    traefik.http.routers.admin-http.middlewares: https-redirect
+    traefik.http.routers.admin-http.rule: Host(`admin.${HOSTNAME}`)
+    traefik.http.routers.admin-https.entrypoints: https
+    traefik.http.routers.admin-https.rule: Host(`admin.${HOSTNAME}`)
+    traefik.http.routers.admin-https.service: admin
+    traefik.http.routers.admin-https.tls: 'true'
+    traefik.http.routers.admin-https.middlewares: auth@docker
+    traefik.http.services.admin.loadbalancer.server.port: 80
   mail-labels: &mail-labels
     traefik.docker.network: gateway
     traefik.enable: 'true'
@@ -147,6 +159,23 @@ services:
     # ports:
     #   - 4435:4435
     restart: on-failure
+
+  kratos_admin_ui:
+    depends_on:
+      - kratos_server
+    deploy:
+      labels:
+        <<: *admin-labels
+    environment:
+      KRATOS_ADMIN_URL: http://kratos_server:4433
+      KRATOS_PUBLIC_URL: http://kratos_server:4434
+    hostname: admin.${HOSTNAME}
+    image: ghcr.io/dfoxg/kratos-admin-ui
+    labels:
+      <<: *admin-labels
+    networks:
+      - default
+      - gateway
 
   mail:
     deploy:

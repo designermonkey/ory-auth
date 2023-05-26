@@ -33,21 +33,6 @@
   mutators:
     - handler: noop
 
-- id: ory:oathkeeper:public
-  upstream:
-    url: http://oathkeeper:4456
-    preserve_host: true
-  match:
-    url: https://auth.${HOSTNAME}/.well-known/jwks.json
-    methods:
-      - GET
-  authenticators:
-    - handler: anonymous
-  authorizer:
-    handler: allow
-  mutators:
-    - handler: noop
-
 - id: ory:kratos_self_ui:protected
   upstream:
     url: http://kratos_self_ui:4435
@@ -67,6 +52,46 @@
       handler: redirect
   mutators:
     - handler: id_token
+
+- id: ory:kratos_admin_ui:protected
+  upstream:
+    url: http://kratos_admin_ui:80
+    preserve_host: true
+    strip_path: /admin
+  match:
+    url: https://admin.${HOSTNAME}/<{,**}>
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+  authenticators:
+    - handler: cookie_session
+    - handler: bearer_token
+  authorizer:
+    handler: allow
+  errors:
+    - config:
+        to: https://auth.${HOSTNAME}/login
+      handler: redirect
+  mutators:
+    - handler: id_token
+
+- id: ory:oathkeeper:public
+  upstream:
+    url: http://oathkeeper:4456
+    preserve_host: true
+  match:
+    url: https://auth.${HOSTNAME}/.well-known/jwks.json
+    methods:
+      - GET
+  authenticators:
+    - handler: anonymous
+  authorizer:
+    handler: allow
+  mutators:
+    - handler: noop
 
 - id: datum:whoami:protected
   match:
